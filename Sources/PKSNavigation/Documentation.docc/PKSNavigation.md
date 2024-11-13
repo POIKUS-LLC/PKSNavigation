@@ -5,7 +5,7 @@
 ## 🚨 Important Notice
 
 - Important: PKSNavigation requires **iOS 16** or later.
-- Warning: This framework is optimized for **iPhone** devices. It hasn't been tested or developed for iPad. If you encounter any issues while developing for iPad, please [open an issue](https://github.com/ohk/PKSNavigation/issues) on our GitHub repository.
+- Warning: This framework is optimized for **iPhone** devices. It hasn't been tested or developed for iPad. If you encounter any issues while developing for iPad, please [open an issue](https://github.com/POIKUS-LLC/PKSNavigation/issues) on our GitHub repository.
 
 ## Featured
 

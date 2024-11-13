@@ -29,7 +29,7 @@
             @Step {
                 **Integrate PKSNavigation**
                 
-                Click the **+** button to add a new package dependency. Enter the PKSNavigation repository URL and click **Next**. Select the desired version and complete the integration. Repository URL: `https://github.com/ohk/PKSNavigation.git`
+                Click the **+** button to add a new package dependency. Enter the PKSNavigation repository URL and click **Next**. Select the desired version and complete the integration. Repository URL: `https://github.com/POIKUS-LLC/PKSNavigation.git`
                 
                 @Image(source: "tab-view-add-package.png", alt: "Screenshot of adding PKSNavigation package in Xcode's Swift Package Manager.")
             }

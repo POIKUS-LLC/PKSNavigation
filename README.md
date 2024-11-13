@@ -1,20 +1,23 @@
 # PKSNavigation
 
-[![Swift](https://img.shields.io/badge/Swift-5.5+-orange.svg)](https://swift.org)
+[![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)](https://swift.org)
 [![iOS](https://img.shields.io/badge/iOS-16.0+-blue.svg)](https://developer.apple.com/ios/)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
-[![Issues](https://img.shields.io/github/issues/ohk/PKSNavigation)](https://github.com/ohk/PKSNavigation/issues)
-[![Contributors](https://img.shields.io/github/contributors/ohk/PKSNavigation)](https://github.com/ohk/PKSNavigation/graphs/contributors)
-[![Version](https://img.shields.io/github/v/release/ohk/PKSNavigation)](https://github.com/ohk/PKSNavigation/releases)
+[![Issues](https://img.shields.io/github/issues/POIKUS-LLC/PKSNavigation)](https://github.com/POIKUS-LLC/PKSNavigation/issues)
+[![Contributors](https://img.shields.io/github/contributors/POIKUS-LLC/PKSNavigation)](https://github.com/POIKUS-LLC/PKSNavigation/graphs/contributors)
+[![Version](https://img.shields.io/github/v/release/POIKUS-LLC/PKSNavigation)](https://github.com/POIKUS-LLC/PKSNavigation/releases)
 
-[![codecov](https://codecov.io/gh/ohk/PKSNavigation/graph/badge.svg?token=VBCJMHMLG4)](https://codecov.io/gh/ohk/PKSNavigation) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=bugs)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation)
+[![codecov](https://codecov.io/gh/ohk/PKSNavigation/graph/badge.svg?token=VBCJMHMLG4)](https://codecov.io/gh/POIKUS-LLC/PKSNavigation) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=bugs)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation) [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=ohk_PKSNavigation&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=ohk_PKSNavigation)
+
+<a href="https://www.producthunt.com/posts/pksnavigation?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-pksnavigation" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=522367&theme=light" alt="PKSNavigation - SwiftUI&#0044;&#0032;Swift&#0044;&#0032;Navigation&#0044;&#0032;PKSNavigation | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
 
 **PKSNavigation** is a simple yet powerful navigation framework designed for SwiftUI applications. It helps you manage complex navigation flows with ease, supporting stack-based navigation, sheet presentations, and full-screen covers. Whether you're building a small app or a large-scale project, PKSNavigation streamlines your navigation logic, making your code cleaner and more maintainable.
 
 ## 🚨 Important Notice
 
 - Important: PKSNavigation requires **iOS 16** or later.
-- Warning: This framework is optimized for **iPhone** devices. It hasn't been tested or developed for iPad. If you encounter any issues while developing for iPad, please [open an issue](https://github.com/ohk/PKSNavigation/issues) on our GitHub repository.
+- Warning: This framework is optimized for **iPhone** devices. It hasn't been tested or developed for iPad. If you encounter any issues while developing for iPad, please [open an issue](https://github.com/POIKUS-LLC/PKSNavigation/issues) on our GitHub repository.
 
 ## 🌟 Features
 
@@ -26,7 +29,7 @@
 
 ## Demo App
 
-A demo app is available in the [PKSNavigationDemo](https://github.com/ohk/PKSNavigationDemo) repository. Please check it out for more examples and usage scenarios. 
+A demo app is available in the [PKSNavigationDemo](https://github.com/POIKUS-LLC/PKSNavigationDemo) repository. Please check it out for more examples and usage scenarios.
 
 > AppleStoreDemo is a mock Apple Store application designed to demonstrate the integration and capabilities of the PKSNavigation framework
 
@@ -37,7 +40,7 @@ A demo app is available in the [PKSNavigationDemo](https://github.com/ohk/PKSNav
 You can install PKSNavigation using the [Swift Package Manager](https://swift.org/package-manager/):
 
 1. In Xcode, open your project and navigate to File → Swift Packages → Add Package Dependency...
-2. Paste the repository URL: https://github.com/ohk/PKSNavigation.git
+2. Paste the repository URL: https://github.com/POIKUS-LLC/PKSNavigation.git
 3. Click Next and select the version you want to use
 
 ## Usage
@@ -231,7 +234,7 @@ Defines the type of navigation presentation:
 
 ## 🧑‍💻 Contributing
 
-We welcome contributions! If you encounter any issues or have suggestions for improvements, please [open an issue](https://github.com/ohk/PKSNavigation/issues) on our GitHub repository.
+We welcome contributions! If you encounter any issues or have suggestions for improvements, please [open an issue](https://github.com/POIKUS-LLC/PKSNavigation/issues) on our GitHub repository.
 
 ## 🤝 Code of Conduct
 
