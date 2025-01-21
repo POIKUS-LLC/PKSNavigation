@@ -55,11 +55,9 @@ public struct PKSNavigationContainer<Root: View>: View {
         NavigationStack(path: $navigationManager.rootPath) {
             root
                 .environmentObject(navigationManager)
-                .pksDismissEnvironment(navigationManager: navigationManager)
                 .navigationDestination(for: PKSView.self) { page in
                     page.view
                         .environmentObject(navigationManager)
-                        .pksDismissEnvironment(navigationManager: navigationManager)
                 }
         }
         .modalNavigationStackManager(navigationManager: navigationManager)

@@ -48,32 +48,26 @@ import SwiftUI
     public func body(content: Content) -> some View {
         content
             .sheet(
-                item: $navigationManager.rootSheet,
-                onDismiss: navigationManager.onSheetModalDismissed
+                item: $navigationManager.rootSheet
             ) { page in
                 NavigationStack(path: $navigationManager.sheetPath) {
                     page.view
                         .environmentObject(navigationManager)
-                        .pksDismissEnvironment(navigationManager: navigationManager)
                         .navigationDestination(for: PKSView.self) { page in
                             page.view
-                                .pksDismissEnvironment(navigationManager: navigationManager)
                                 .environmentObject(navigationManager)
                         }
                 }
                 .presentationDragIndicator(.visible)
             }
             .fullScreenCover(
-                item: $navigationManager.rootCover,
-                onDismiss: navigationManager.onCoverModalDismissed
+                item: $navigationManager.rootCover
             ) { page in
                 NavigationStack(path: $navigationManager.coverPath) {
                     page.view
                         .environmentObject(navigationManager)
-                        .pksDismissEnvironment(navigationManager: navigationManager)
                         .navigationDestination(for: PKSView.self) { page in
                             page.view
-                                .pksDismissEnvironment(navigationManager: navigationManager)
                                 .environmentObject(navigationManager)
                         }
                 }

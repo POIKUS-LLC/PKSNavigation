@@ -11,7 +11,7 @@ import Foundation
 /// A struct that represents a navigation history item.
 struct PKSHistoryItem: Identifiable, Equatable, Hashable {
     // Identifiable
-    var id: UUID = UUID()
+    var id: UUID
 
     // The page that was navigated to.
     var page: (any PKSPage)? = nil
@@ -30,6 +30,8 @@ struct PKSHistoryItem: Identifiable, Equatable, Hashable {
 
     // Whether the navigation is handled by a parent.
     var isParent: Bool = false
+    
+//    var childManagerID: UUID
 
     // MARK: - Equatable
     static func == (lhs: PKSHistoryItem, rhs: PKSHistoryItem) -> Bool {

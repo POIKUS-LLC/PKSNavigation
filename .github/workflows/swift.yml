@@ -23,9 +23,19 @@ jobs:
           brew tap a7ex/homebrew-formulae
           brew install xcresultparser
 
-      - name: Build
+      - name: Test iOS 16
+        run: xcodebuild test -scheme PKSNavigation -destination 'platform=iOS Simulator,name=iPhone 14,OS=16.4' -derivedDataPath /tmp/build -enableCodeCoverage YES
+
+      - name: Test iOS 17
         run: xcodebuild test -scheme PKSNavigation -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5' -derivedDataPath /tmp/build -enableCodeCoverage YES
 
+      - name: Test iOS 18
+        run: xcodebuild test -scheme PKSNavigation -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.0' -derivedDataPath /tmp/build -enableCodeCoverage YES
+
+      # TODO: Merge coverage reports and upload to Codecov
+      # - name: Merge coverage reports
+
+      
       - name: Generate coverage report
         run: |
           xcresultparser -o cobertura /tmp/build/Logs/Test/Test-*.xcresult > cobertura.xml

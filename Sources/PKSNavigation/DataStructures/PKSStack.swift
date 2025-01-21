@@ -16,7 +16,6 @@ import Foundation
 /// - Note: This class is `final` and cannot be subclassed.
 ///
 /// - Author: Omer Hamid Kamisli
-
 final class PKSStack<T> {
 
     // MARK: - Properties
@@ -24,7 +23,7 @@ final class PKSStack<T> {
     /// The internal storage for stack items.
     ///
     /// An array that holds the items in the stack. Access to this array is synchronized using `DispatchQueue`.
-    private var items: [T] = []
+    fileprivate var items: [T] = []
 
     /// The dispatch queue used for thread-safe access.
     ///
@@ -101,5 +100,17 @@ final class PKSStack<T> {
         accessQueue.async(flags: .barrier) {
             self.items.removeAll()
         }
+    }
+}
+
+extension PKSStack {
+    func clone() -> PKSStack {
+        let clonedStack = PKSStack()
+        
+        for item in self.items {
+            clonedStack.push(item)
+        }
+        
+        return clonedStack
     }
 }

@@ -6,6 +6,8 @@
 //  Copyright © 2024 POIKUS LLC. All rights reserved.
 //
 
+import SwiftUI
+
 /// A protocol that represents a page in your app's user interface.
 ///
 /// Conform to the `PKSPage` protocol to create custom pages that provide a view
@@ -36,8 +38,6 @@
 ///         }
 ///     }
 ///
-import SwiftUI
-
 @available(iOS 16.0, *)
 public protocol PKSPage: Hashable, Identifiable {
 

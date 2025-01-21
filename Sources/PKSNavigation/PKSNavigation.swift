@@ -9,6 +9,8 @@
 import OSLog
 import SwiftUI
 
+// MARK: - PKSNavigationManager
+
 /// Manages the navigation flow within the PKSNavigation framework.
 ///
 /// The `PKSNavigationManager` class is responsible for handling navigation actions such as pushing and popping views,
@@ -17,13 +19,41 @@ import SwiftUI
 /// state changes are observed by conforming to `ObservableObject`.
 ///
 /// - Note: This class is `open` and can be subclassed to extend its functionality.
-///
 /// - Author: Omer Hamid Kamisli
+///
 @available(iOS 16.0, *)
+@MainActor
 open class PKSNavigationManager: ObservableObject {
     
-    // MARK: - Published Properties
+    // MARK: - Nested Types
+
+    /// The severity level of log messages.
+    public enum LogLevel: Int, Comparable {
+        case verbose = 0
+        case info = 1
+        case error = 2
+        case critical = 3
+        
+        var osLogType: OSLogType {
+            switch self {
+            case .verbose:
+                return .debug
+            case .info:
+                return .info
+            case .error:
+                return .error
+            case .critical:
+                return .fault
+            }
+        }
+        
+        public static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
+            lhs.rawValue < rhs.rawValue
+        }
+    }
     
+    // MARK: - Published Properties
+
     /// The currently active presentation method.
     ///
     /// Indicates the presentation method currently in use, such as `.stack`, `.sheet`, or `.cover`.
@@ -32,36 +62,57 @@ open class PKSNavigationManager: ObservableObject {
     /// The navigation path for stack-based navigation.
     ///
     /// Used to manage the navigation stack when using the `.stack` presentation method.
-    @Published public var rootPath: NavigationPath = .init()
+    /// - Warning: Public due to the `NavigationStack` requirement. **Do not** mutate directly.
+    @Published public var rootPath: NavigationPath = .init() {
+        didSet { handleNavigationChanges(old: oldValue.count, new: rootPath.count) }
+    }
     
     /// The navigation path for sheet presentations.
     ///
     /// Manages the navigation stack when presenting views as sheets.
-    @Published public var sheetPath: NavigationPath = .init()
+    /// - Warning: Public due to the `NavigationStack` requirement. **Do not** mutate directly.
+    @Published public var sheetPath: NavigationPath = .init() {
+        didSet { handleSheetNavigationChanges(old: oldValue.count, new: sheetPath.count) }
+    }
     
     /// The navigation path for cover presentations.
     ///
     /// Manages the navigation stack when presenting views as full-screen covers.
-    @Published public var coverPath: NavigationPath = .init()
+    /// - Warning: Public due to the `NavigationStack` requirement. **Do not** mutate directly.
+    @Published public var coverPath: NavigationPath = .init() {
+        didSet { handleCoverNavigationChanges(old: oldValue.count, new: coverPath.count) }
+    }
     
     /// The root view for sheet presentations.
-    ///
-    /// Represents the initial view presented as a sheet.
-    @Published public var rootSheet: PKSView? = nil
+    @Published public var rootSheet: PKSView? = nil {
+        didSet {
+            if oldValue != nil {
+                handleSheetAndCoverResetNavigationChanges(isSheet: true)
+            }
+        }
+    }
     
     /// The root view for cover presentations.
-    ///
-    /// Represents the initial view presented as a full-screen cover.
-    @Published public var rootCover: PKSView? = nil
+    @Published public var rootCover: PKSView? = nil {
+        didSet {
+            if oldValue != nil {
+                handleSheetAndCoverResetNavigationChanges(isSheet: false)
+            }
+        }
+    }
     
-    // MARK: - Properties
+    // MARK: - Internal & Private Properties
+
+    /// The unique identifier of this navigation manager.
+    internal var id: UUID = UUID()
     
-    /// The parent navigation manager.
-    ///
-    /// Used for nested navigation flows, allowing this manager to delegate navigation actions to a parent manager.
-    public private(set) var parent: PKSNavigationManager?
+    /// Weak references to child navigation managers.
+    internal var children: [UUID: PKSWeakObject<PKSNavigationManager>] = [:]
+
+    /// Reference to the parent navigation manager.
+    private(set) var parent: PKSNavigationManager?
     
-    /// The logger used for debugging and monitoring navigation events.
+    /// Logger for debug and runtime messages.
     private var logger: Logger
     
     /// The navigation history stack.
@@ -69,209 +120,43 @@ open class PKSNavigationManager: ObservableObject {
     /// Stores a history of navigation events to manage backward navigation and state restoration.
     private var history: PKSStack<PKSHistoryItem> = .init()
     
-    /// A flag indicating whether the sheet stack has been registered.
+    /// Indicates whether the sheet stack has been registered.
     private var isSheetStackRegistered: Bool = false
     
-    /// A flag indicating whether the cover stack has been registered.
+    /// Indicates whether the cover stack has been registered.
     private var isCoverStackRegistered: Bool = false
     
-    /// A unique identifier for the navigation manager.
+    /// A custom identifier for this manager, if any.
     private var identifier: String
     
-    // MARK: - Initialization
+    // MARK: - Configuration
+
+    /// The current log level for this manager.
+    public var logLevel: LogLevel = .verbose
     
+    // MARK: - Initialization & Deinitialization
+
     /// Initializes a new instance of `PKSNavigationManager`.
     ///
-    /// - Parameter identifier: A unique identifier for the navigation manager. Defaults to the class name.
+    /// - Parameter identifier: A unique identifier, defaulting to the class name.
     public init(identifier: String = String(describing: PKSNavigationManager.self)) {
         self.identifier = identifier
-        logger = Logger(subsystem: "PKSNavigation", category: "Manager - \(identifier)")
-        logger.debug("PKSNavigationManager initialized with identifier: \(identifier).")
+        self.logger = Logger(subsystem: "PKSNavigation", category: "Manager - \(identifier)")
+        log("PKSNavigationManager initialized with identifier: \(identifier).", level: .info)
     }
     
     deinit {
-        logger.debug("PKSNavigation deinit. \(String(describing: type(of: self)))")
+        debugPrint("PKSNavigation deinit.")
     }
     
-    // MARK: - Public Methods
-    
-    /// Sets the parent navigation manager.
-    ///
-    /// Use this method to establish a hierarchical navigation structure by assigning a parent manager.
-    ///
-    /// - Parameter parent: The parent `PKSNavigationManager` instance.
-    public func setParent(_ parent: PKSNavigationManager?) {
-        self.parent = parent
-        if let parent = parent {
-            logger.debug(
-                "Parent navigation manager set to \(String(describing: parent.identifier)).")
-        } else {
-            logger.debug("Parent navigation manager removed.")
-        }
-    }
-    
-    /// Navigates to a specified page using a given presentation method.
-    ///
-    /// This method handles navigation to a new page, managing different presentation styles such as stack navigation,
-    /// sheet presentation, or full-screen cover. It also updates the navigation history accordingly.
-    ///
-    /// - Parameters:
-    ///   - page: The page to navigate to, conforming to `PKSPage`.
-    ///   - presentation: The presentation method to use. Options are `.stack`, `.sheet`, or `.cover`. Defaults to `.stack`.
-    ///   - isRoot: A Boolean value indicating whether the page should be set as the root of the navigation stack. Defaults to `false`.
-    public func navigate(to page: any PKSPage, presentation: PKSPresentationMethod = .stack, isRoot: Bool = false) {
-        navigate(to: page, presentation: presentation, isRoot: isRoot, isNavigatingWithParent: false)
-    }
-    
-    /// Navigates to a specified page using a given presentation method.
-    ///
-    /// This method handles navigation to a new page, managing different presentation styles such as stack navigation,
-    /// sheet presentation, or full-screen cover. It also updates the navigation history accordingly.
-    ///
-    /// - Parameters:
-    ///   - page: The page to navigate to, conforming to `PKSPage`.
-    ///   - presentation: The presentation method to use. Options are `.stack`, `.sheet`, or `.cover`. Defaults to `.stack`.
-    ///   - isRoot: A Boolean value indicating whether the page should be set as the root of the navigation stack. Defaults to `false`.
-    ///   - isNavigatingWithParent: A Boolean value indicating whether the navigation passed from sub manager to parent manager. Defaults to `false`
-    fileprivate func navigate(to page: any PKSPage, presentation: PKSPresentationMethod = .stack, isRoot: Bool = false, isNavigatingWithParent: Bool = false) {
-        if !isNavigatingWithParent {
-            logger.debug(
-                "Request to navigate to \(page.description) with presentation: \(presentation.rawValue), isRoot: \(isRoot)."
-            )
-        }
-        switch presentation {
-        case .stack:
-            switch activePresentation {
-            case .stack:
-                handleStackNavigation(page: page)
-            case .sheet:
-                logger.debug("Current active presentation is sheet. Handling stack navigation within sheet.")
-                handleSheetNavigation(page: page, isRoot: isRoot)
-            case .cover:
-                logger.debug("Current active presentation is cover. Handling stack navigation within cover.")
-                handleCoverNavigation(page: page, isRoot: isRoot)
-            }
-        case .sheet:
-            if isSheetStackRegistered {
-                handleSheetNavigation(page: page, isRoot: isRoot)
-            } else {
-                logger.debug("Sheet stack not registered. Delegating sheet navigation to parent.")
-                navigateWithParent(to: page, presentation: presentation, isRoot: isRoot)
-            }
-        case .cover:
-            if isCoverStackRegistered {
-                handleCoverNavigation(page: page, isRoot: isRoot)
-            } else {
-                logger.debug("Cover stack not registered. Delegating cover navigation to parent.")
-                navigateWithParent(to: page, presentation: presentation, isRoot: isRoot)
-            }
-        }
-    }
-    
-    /// Navigates back to the previous page in the navigation history.
-    ///
-    /// This method pops the last navigation event from the history stack and updates the navigation state accordingly.
-    /// If there is no history, it delegates the navigation back action to the parent manager if available.
-    public func navigateBack() {
-        guard let lastHistoryItem = history.pop() else {
-            logger.critical("No history available to navigate back.")
-            return
-        }
-        if !lastHistoryItem.isParent {
-            logger.debug("Attempting to navigate back.")
-            logger.debug("Popped history item: \(String(describing: lastHistoryItem.page?.description)).")
-        }
-        
-        if lastHistoryItem.isParent {
-            logger.debug("History item belongs to parent. Delegating navigateBack to parent.")
-            parent?.navigateBack()
-        } else {
-            logger.debug("Handling navigateBack for presentation: \(lastHistoryItem.presentation.rawValue).")
-            switch lastHistoryItem.presentation {
-            case .stack:
-                rootPath.removeLastIfAvailable()
-                logger.debug("Removed last item from rootPath. New stack depth: \(self.rootPath.count).")
-            case .sheet:
-                if sheetPath.isEmpty { 
-                    rootSheet = nil
-                    logger.debug("Root sheet removed.")
-                } else {
-                    sheetPath.removeLastIfAvailable()
-                    logger.debug("Removed last item from sheetPath. New sheet depth: \(self.sheetPath.count).")
-                }
-                
-            case .cover:
-                if coverPath.isEmpty {
-                    rootCover = nil
-                    logger.debug("Root cover removed.")
-                } else {
-                    coverPath.removeLastIfAvailable()
-                    logger.debug("Removed last item from coverPath. New cover depth: \(self.coverPath.count).")
-                }
-            }
-            updateActivePresentation()
-            logger.debug(
-                "navigateBack completed for presentation: \(lastHistoryItem.presentation.rawValue)."
-            )
-        }
-    }
-    
-    /// Called when a sheet modal is dismissed.
-    ///
-    /// This method resets the navigation paths for sheet presentations and updates the active presentation method.
-    public func onSheetModalDismissed() {
-        logger.debug(
-            "Sheet modal dismissed. Resetting navigation paths based on active presentation: \(self.activePresentation.rawValue)."
-        )
-
-        logger.debug("Popping history items until a non-sheet presentation is found.")
-        var popCount = 0
-
-        while let historyItem = history.peek(), historyItem.presentation == .sheet {
-            history.pop()
-            popCount += 1
-        }
-
-        sheetPath.clear()
-        logger.debug("sheetPath cleared. Popped \(popCount) history items.")
-
-        rootSheet = nil
-        
-        activePresentation = .stack
-        logger.debug("Active presentation set to .stack after modal dismissal.")
-    }
-    
-    /// Called when a cover modal is dismissed.
-    ///
-    /// This method resets the navigation paths for cover presentations and updates the active presentation method.
-    public func onCoverModalDismissed() {
-        logger.debug(
-            "Cover modal dismissed. Resetting navigation paths based on active presentation: \(self.activePresentation.rawValue)."
-        )
-
-        logger.debug("Popping history items until a non-cover presentation is found.")
-        var popCount = 0
-
-        while let historyItem = history.peek(), historyItem.presentation == .cover {
-            history.pop()
-            popCount += 1
-        }
-
-        coverPath.clear()
-        logger.debug("coverPath cleared. Popped \(popCount) history items.")
-        
-        rootCover = nil
-        
-        activePresentation = .stack
-        logger.debug("Active presentation set to .stack after modal dismissal.")
-    }
+    // MARK: - Public: Registration Methods
 
     /// Registers the sheet stack for navigation.
     ///
     /// Call this method to enable sheet-based navigation within the manager.
     public func registerSheetStack() {
         isSheetStackRegistered = true
-        logger.debug("Sheet stack has been registered.")
+        log("Sheet stack has been registered.", level: .info)
     }
 
     /// Registers the cover stack for navigation.
@@ -279,103 +164,189 @@ open class PKSNavigationManager: ObservableObject {
     /// Call this method to enable cover-based navigation within the manager.
     public func registerCoverStack() {
         isCoverStackRegistered = true
-        logger.debug("Cover stack has been registered.")
+        log("Cover stack has been registered.", level: .info)
+    }
+    
+    // MARK: - Public: Parent/Child Management
+
+    /// Sets the parent navigation manager. Pass `nil` to remove the parent.
+    ///
+    /// - Parameter parent: The parent `PKSNavigationManager`.
+    /// - Returns: A Boolean value indicating whether the assignment was successful.
+    @MainActor @discardableResult
+    public func setParent(_ parent: PKSNavigationManager?) -> Bool {
+        if let parent, let selfParent = self.parent, parent.id == selfParent.id {
+            log("Parent is already set to this instance. Returning false.", level: .verbose)
+            return false
+        }
+        
+        if let parent {
+            if self.parent != nil {
+                self.parent?.removeChild(self.id)
+            }
+            self.parent = parent
+            self.parent?.registerChild(self)
+            log("Parent set: \(parent.identifier).", level: .info)
+        } else {
+            self.parent?.removeChild(self.id)
+            self.parent = nil
+            log("Parent removed.", level: .info)
+        }
+        
+        return true
+    }
+    
+    // MARK: - Public: Navigation Methods
+
+    /// Navigates to a specified `PKSPage` with a given presentation.
+    ///
+    /// - Parameters:
+    ///   - page: The page to navigate to.
+    ///   - presentation: `.stack`, `.sheet`, or `.cover`. Defaults to `.stack`.
+    ///   - isRoot: Whether to reset the presentation stack to make this page the root. Defaults to `false`.
+    public func navigate(
+        to page: any PKSPage,
+        presentation: PKSPresentationMethod = .stack,
+        isRoot: Bool = false
+    ) {
+        navigate(to: page, presentation: presentation, isRoot: isRoot, isNavigatingWithParent: false)
     }
 
-    /// Terminates the current navigation flow and returns to the parent or root.
-    ///
-    /// This method clears the navigation history and delegates the termination action to the parent manager if available.
+    /// Navigates back to the previous page/state in the navigation history.
+    public func navigateBack() {
+        guard let lastHistoryItem = history.peek() else {
+            log("No history available to navigate back.", level: .critical)
+            return
+        }
+        
+        if lastHistoryItem.isParent {
+            log("Last history item is delegated to parent. Passing navigateBack to parent.", level: .verbose)
+            parent?.navigateBack()
+            return
+        }
+        
+        log("Navigating back from \(lastHistoryItem.presentation.rawValue).", level: .verbose)
+        switch lastHistoryItem.presentation {
+        case .stack:
+            rootPath.removeLastIfAvailable()
+            log("Root path popped. New depth: \(rootPath.count).", level: .info)
+        case .sheet:
+            if sheetPath.isEmpty {
+                rootSheet = nil
+                log("Root sheet removed.", level: .info)
+            } else {
+                sheetPath.removeLastIfAvailable()
+                log("Sheet path popped. New depth: \(sheetPath.count).", level: .info)
+            }
+        case .cover:
+            if coverPath.isEmpty {
+                rootCover = nil
+                log("Root cover removed.", level: .info)
+            } else {
+                coverPath.removeLastIfAvailable()
+                log("Cover path popped. New depth: \(coverPath.count).", level: .info)
+            }
+        }
+        
+        updateActivePresentation()
+        log("Navigation back complete.", level: .info)
+    }
+
+    /// Terminates the current navigation flow and clears all history.
     public func killTheFlow() {
-        logger.warning("Killing the current navigation flow. Clearing history.")
-        while let historyItem = history.peek() {
-            logger.debug(
-                "Clearing history item: \(String(describing: historyItem.page?.description)).")
+        log("Killing the current navigation flow. Clearing history.", level: .error)
+        let copiedHistory = history.clone()
+        
+        while let historyItem = copiedHistory.pop() {
+            log("Clearing history item: \(String(describing: historyItem.page?.description)).", level: .verbose)
             if historyItem.isParent {
-                logger.debug("History item belongs to parent. Delegating navigateBack to parent.")
-                history.pop()
                 parent?.navigateBack()
             } else {
                 navigateBack()
             }
         }
-        logger.debug("All history items cleared. Finalizing killTheFlow.")
-        parent?.navigateBack()
-        logger.info("killTheFlow completed. Returned to parent or root.")
+        
+        log("All history items cleared.", level: .verbose)
+    }
+    
+    // MARK: - Private: Parent/Child Helpers
+
+    /// Registers a child navigation manager.
+    private func registerChild(_ child: PKSNavigationManager) {
+        children[child.id] = PKSWeakObject(object: child)
+        log("Child registered: \(child.id).", level: .info)
     }
 
-    // MARK: - Private Methods
-
-    /// Handles stack-based navigation.
-    ///
-    /// - Parameter page: The page to navigate to.
-    private func handleStackNavigation(page: any PKSPage) {
-        logger.debug("Handling stack navigation for page: \(page.description).")
-        if parent == nil {
-            logNavigationEvent(page: page, presentation: .stack)
-            activePresentation = .stack
-            rootPath.append(PKSView(wrapped: page))
-            logger.info(
-                "Navigated to \(page.description) on stack. Stack depth: \(self.rootPath.count).")
-        } else {
-            logger.debug("Parent exists. Delegating stack navigation to parent.")
-            navigateWithParent(to: page, presentation: .stack, isRoot: false)
+    /// Removes a child navigation manager.
+    private func removeChild(_ id: UUID) {
+        if children[id] != nil {
+            children.removeValue(forKey: id)
+            log("Child removed: \(id).", level: .info)
         }
     }
+    
+    // MARK: - Private: Navigation Core
 
-    /// Handles sheet-based navigation.
-    ///
-    /// - Parameters:
-    ///   - page: The page to navigate to.
-    ///   - isRoot: Indicates whether the page should be set as the root of the sheet navigation stack.
-    private func handleSheetNavigation(page: any PKSPage, isRoot: Bool) {
-        logger.debug("Handling sheet navigation for page: \(page.description), isRoot: \(isRoot).")
-        logNavigationEvent(page: page, presentation: .sheet)
-        activePresentation = .sheet
-        if isRoot || rootSheet == nil {
-            logger.debug("Setting new root sheet with page: \(page.description).")
-            resetRootSheet(with: page)
-        } else {
-            logger.debug("Appending to sheetPath with page: \(page.description).")
-            sheetPath.append(PKSView(wrapped: page))
-        }
-        logger.info(
-            "Sheet navigation to \(page.description) completed. Sheet depth: \(self.sheetPath.count).")
-    }
-
-    /// Handles cover-based navigation.
-    ///
-    /// - Parameters:
-    ///   - page: The page to navigate to.
-    ///   - isRoot: Indicates whether the page should be set as the root of the cover navigation stack.
-    private func handleCoverNavigation(page: any PKSPage, isRoot: Bool) {
-        logger.debug("Handling cover navigation for page: \(page.description), isRoot: \(isRoot).")
-        logNavigationEvent(page: page, presentation: .cover)
-        activePresentation = .cover
-        if isRoot || rootCover == nil {
-            logger.debug("Setting new root cover with page: \(page.description).")
-            resetRootCover(with: page)
-        } else {
-            logger.debug("Appending to coverPath with page: \(page.description).")
-            coverPath.append(PKSView(wrapped: page))
-        }
-        logger.info(
-            "Cover navigation to \(page.description) completed. Cover depth: \(self.coverPath.count).")
-    }
-
-    /// Navigates using the parent navigation manager.
-    ///
-    /// - Parameters:
-    ///   - page: The page to navigate to.
-    ///   - presentation: The presentation method to use.
-    ///   - isRoot: Indicates whether the page should be set as the root of the navigation stack.
-    private func navigateWithParent(
-        to page: any PKSPage, presentation: PKSPresentationMethod, isRoot: Bool
+    /// Core navigation logic, including delegation to parent if needed.
+    fileprivate func navigate(
+        to page: any PKSPage,
+        presentation: PKSPresentationMethod = .stack,
+        isRoot: Bool = false,
+        isNavigatingWithParent: Bool = false,
+        historyID: UUID = UUID()
     ) {
-        logger.debug(
-            "Navigating with parent for page: \(page.description), presentation: \(presentation.rawValue), isRoot: \(isRoot)."
-        )
+        if !isNavigatingWithParent {
+            log("Navigating to \(page.description) via \(presentation.rawValue). isRoot: \(isRoot).", level: .verbose)
+        }
+        
+        switch presentation {
+        case .stack:
+            switch activePresentation {
+            case .stack:
+                handleStackNavigation(page: page, historyID: historyID)
+            case .sheet:
+                log("Active presentation is sheet. Routing stack navigation in sheet context.", level: .verbose)
+                handleSheetNavigation(page: page, isRoot: isRoot, historyID: historyID)
+            case .cover:
+                log("Active presentation is cover. Routing stack navigation in cover context.", level: .verbose)
+                handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
+            }
+        case .sheet:
+            if isSheetStackRegistered {
+                if activePresentation == .cover {
+                    handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
+                } else {
+                    handleSheetNavigation(page: page, isRoot: isRoot, historyID: historyID)
+                }
+            } else {
+                log("Sheet stack not registered. Delegating to parent.", level: .verbose)
+                navigateWithParent(to: page, presentation: presentation, isRoot: isRoot, historyID: historyID)
+            }
+        case .cover:
+            if isCoverStackRegistered {
+                if activePresentation == .sheet {
+                    handleSheetNavigation(page: page, isRoot: isRoot, historyID: historyID)
+                } else {
+                    handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
+                }
+            } else {
+                log("Cover stack not registered. Delegating to parent.", level: .verbose)
+                navigateWithParent(to: page, presentation: presentation, isRoot: isRoot, historyID: historyID)
+            }
+        }
+    }
+    
+    /// Handles the situation where navigation is passed to the parent manager.
+    private func navigateWithParent(
+        to page: any PKSPage,
+        presentation: PKSPresentationMethod,
+        isRoot: Bool,
+        historyID: UUID
+    ) {
+        log("Navigating with parent for \(page.description).", level: .verbose)
         history.push(
             PKSHistoryItem(
+                id: historyID,
                 page: page,
                 presentation: presentation,
                 timestamp: Date(),
@@ -384,87 +355,124 @@ open class PKSNavigationManager: ObservableObject {
                 isParent: true
             )
         )
-        parent?.navigate(to: page, presentation: presentation, isRoot: isRoot)
-            ?? handleStackNavigation(page: page)
-        logger.info("navigateWithParent executed for page: \(page.description).")
+        
+        parent?.navigate(to: page, presentation: presentation, isRoot: isRoot, historyID: historyID)
+        ?? handleStackNavigation(page: page, historyID: historyID)
+        
+        log("navigateWithParent completed.", level: .info)
+    }
+    
+    // MARK: - Private: Stack Navigation
+
+    /// Handles stack-based (NavigationStack) navigation.
+    private func handleStackNavigation(page: any PKSPage, historyID: UUID) {
+        log("Handling stack navigation for \(page.description).", level: .verbose)
+        
+        if parent == nil {
+            logNavigationEvent(page: page, presentation: .stack, historyID: historyID)
+            activePresentation = .stack
+            rootPath.append(PKSView(wrapped: page))
+            log("Navigated to \(page.description) on stack. Depth: \(rootPath.count).", level: .info)
+        } else {
+            log("Parent exists. Delegating stack navigation to parent.", level: .verbose)
+            navigateWithParent(to: page, presentation: .stack, isRoot: false, historyID: historyID)
+        }
+    }
+    
+    // MARK: - Private: Sheet Navigation
+
+    /// Handles sheet-based (modal) navigation.
+    private func handleSheetNavigation(page: any PKSPage, isRoot: Bool, historyID: UUID) {
+        log("Handling sheet navigation for \(page.description). isRoot: \(isRoot).", level: .verbose)
+        logNavigationEvent(page: page, presentation: .sheet, historyID: historyID)
+        
+        activePresentation = .sheet
+        if isRoot || rootSheet == nil {
+            log("Resetting root sheet with \(page.description).", level: .verbose)
+            resetRootSheet(with: page)
+        } else {
+            log("Appending \(page.description) to sheetPath.", level: .verbose)
+            sheetPath.append(PKSView(wrapped: page))
+        }
+        
+        log("Sheet navigation to \(page.description) complete. Depth: \(sheetPath.count).", level: .info)
     }
 
     /// Resets the root sheet with a new page.
-    ///
-    /// - Parameter page: The new root page for sheet presentations.
     private func resetRootSheet(with page: any PKSPage) {
-        logger.debug("Resetting root sheet with page: \(page.description).")
+        log("Resetting root sheet to \(page.description).", level: .verbose)
+        
         if #available(iOS 17, *) {
-            sheetPath.clear()
+            if !sheetPath.isEmpty { sheetPath.clear() }
             rootSheet = PKSView(wrapped: page)
-            logger.debug("Root sheet reset immediately for iOS 17 and above.")
+            log("Root sheet reset (iOS 17+).", level: .verbose)
         } else {
             rootSheet = nil
-            sheetPath.clear()
-            logger.debug(
-                "Cleared rootSheet and sheetPath for iOS versions below 17. Scheduling rootSheet update."
-            )
+            if !sheetPath.isEmpty { sheetPath.clear() }
+            log("Cleared rootSheet and sheetPath. Scheduling new assignment (iOS < 17).", level: .verbose)
+            
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
                 guard let self = self else {
-                    self?.logger.error("Self is nil when resetting root sheet.")
+                    self?.log("Self is nil when resetting root sheet.", level: .error)
                     return
                 }
                 self.rootSheet = PKSView(wrapped: page)
-                self.logger.debug("Root sheet reset asynchronously for iOS below 17.")
+                self.log("Root sheet assigned asynchronously (iOS < 17).", level: .verbose)
             }
         }
     }
+    
+    // MARK: - Private: Cover Navigation
 
+    /// Handles cover-based (full-screen) navigation.
+    private func handleCoverNavigation(page: any PKSPage, isRoot: Bool, historyID: UUID) {
+        log("Handling cover navigation for \(page.description). isRoot: \(isRoot).", level: .verbose)
+        logNavigationEvent(page: page, presentation: .cover, historyID: historyID)
+        
+        activePresentation = .cover
+        if isRoot || rootCover == nil {
+            log("Resetting root cover with \(page.description).", level: .verbose)
+            resetRootCover(with: page)
+        } else {
+            log("Appending \(page.description) to coverPath.", level: .verbose)
+            coverPath.append(PKSView(wrapped: page))
+        }
+        
+        log("Cover navigation to \(page.description) complete. Depth: \(coverPath.count).", level: .info)
+    }
+    
     /// Resets the root cover with a new page.
-    ///
-    /// - Parameter page: The new root page for cover presentations.
     private func resetRootCover(with page: any PKSPage) {
-        logger.debug("Resetting root cover with page: \(page.description).")
+        log("Resetting root cover to \(page.description).", level: .verbose)
+        
         if #available(iOS 17, *) {
             coverPath.clear()
             rootCover = PKSView(wrapped: page)
-            logger.debug("Root cover reset immediately for iOS 17 and above.")
+            log("Root cover reset (iOS 17+).", level: .verbose)
         } else {
             rootCover = nil
             coverPath.clear()
-            logger.debug(
-                "Cleared rootCover and coverPath for iOS versions below 17. Scheduling rootCover update."
-            )
+            log("Cleared rootCover and coverPath. Scheduling new assignment (iOS < 17).", level: .verbose)
+            
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else {
-                    self?.logger.error("Self is nil when resetting root cover.")
+                    self?.log("Self is nil when resetting root cover.", level: .error)
                     return
                 }
                 self.rootCover = PKSView(wrapped: page)
-                self.logger.debug("Root cover reset asynchronously for iOS below 17.")
+                self.log("Root cover assigned asynchronously (iOS < 17).", level: .verbose)
             }
         }
     }
+    
+    // MARK: - Private: History Management
 
-    /// Updates the active presentation method based on the navigation history.
-    private func updateActivePresentation() {
-        if let lastHistoryItem = history.peek() {
-            logger.debug(
-                "Updating active presentation to \(lastHistoryItem.presentation.rawValue) based on history."
-            )
-            activePresentation = lastHistoryItem.presentation
-        } else {
-            logger.debug("No history available. Setting active presentation to .stack.")
-            activePresentation = .stack
-        }
-    }
-
-    /// Logs a navigation event and updates the history.
-    ///
-    /// - Parameters:
-    ///   - page: The page being navigated to.
-    ///   - presentation: The presentation method used for navigation.
-    private func logNavigationEvent(page: any PKSPage, presentation: PKSPresentationMethod) {
-        logger.debug(
-            "Logging navigation event for page: \(page.description), presentation: \(presentation.rawValue)."
-        )
+    /// Records a navigation event in the history stack.
+    private func logNavigationEvent(page: any PKSPage, presentation: PKSPresentationMethod, historyID: UUID) {
+        log("Logging navigation event for \(page.description). Presentation: \(presentation.rawValue).", level: .verbose)
         history.push(
             PKSHistoryItem(
+                id: historyID,
                 page: page,
                 presentation: presentation,
                 timestamp: Date(),
@@ -473,8 +481,142 @@ open class PKSNavigationManager: ObservableObject {
                 isParent: false
             )
         )
-        logger.debug(
-            "Navigated to \(page.description) with \(presentation.rawValue) presentation. History size: \(self.history.count)."
-        )
+        log("Navigation event logged. History size: \(history.count).", level: .verbose)
+    }
+    
+    /// Updates the navigation history after certain items have been removed.
+    private func updateHistory(removedHistories: [UUID]) {
+        guard !removedHistories.isEmpty, !history.isEmpty else { return }
+        
+        for historyID in removedHistories {
+            if history.peek()?.id == historyID {
+                history.pop()
+            }
+        }
+        
+        for child in children.values {
+            log("Updating history for child with id: \(child.object?.id ?? UUID()).", level: .verbose)
+            child.object?.updateHistory(removedHistories: removedHistories)
+        }
+        
+        updateActivePresentation()
+    }
+    
+    // MARK: - Private: Handling Navigation Changes
+
+    /// Responds to stack navigation path changes.
+    private func handleNavigationChanges(old: Int, new: Int) {
+        var difference = new - old
+        log("Stack navigation changed by \(difference).", level: .verbose)
+        
+        var removedHistoryItems: [UUID] = []
+        while difference < 0 {
+            if let id = history.pop()?.id {
+                removedHistoryItems.append(id)
+            }
+            difference += 1
+        }
+        
+        if !removedHistoryItems.isEmpty {
+            updateHistory(removedHistories: removedHistoryItems)
+        }
+    }
+    
+    /// Responds to a sheet/cover root reset event (root removed).
+    private func handleSheetAndCoverResetNavigationChanges(isSheet: Bool) {
+        let typeLabel = isSheet ? "SHEET" : "COVER"
+        log("Handling \(typeLabel) root reset.", level: .verbose)
+        
+        var removedHistoryItems: [UUID] = []
+        if isSheet {
+            while let item = history.peek(), item.presentation == .sheet {
+                if let poppedItem = history.pop() {
+                    removedHistoryItems.append(poppedItem.id)
+                }
+            }
+            sheetPath.clear()
+        } else {
+            while let item = history.peek(), item.presentation == .cover {
+                if let poppedItem = history.pop() {
+                    removedHistoryItems.append(poppedItem.id)
+                }
+            }
+            coverPath.clear()
+        }
+        
+        log("Removed \(removedHistoryItems.count) items from \(typeLabel) history.", level: .verbose)
+        updateHistory(removedHistories: removedHistoryItems)
+    }
+    
+    /// Responds to sheet path changes.
+    private func handleSheetNavigationChanges(old: Int, new: Int) {
+        var difference = new - old
+        log("Sheet navigation changed by \(difference).", level: .verbose)
+        
+        var removedHistoryItems: [UUID] = []
+        while difference < 0 {
+            if let item = history.peek(), item.presentation == .sheet, let id = history.pop()?.id {
+                removedHistoryItems.append(id)
+                difference += 1
+            } else {
+                log("Sheet navigation history mismatch.", level: .critical)
+                difference = 0
+            }
+        }
+        
+        if !removedHistoryItems.isEmpty {
+            updateHistory(removedHistories: removedHistoryItems)
+        }
+    }
+    
+    /// Responds to cover path changes.
+    private func handleCoverNavigationChanges(old: Int, new: Int) {
+        var difference = new - old
+        log("Cover navigation changed by \(difference).", level: .verbose)
+        
+        var removedHistoryItems: [UUID] = []
+        while difference < 0 {
+            if let item = history.peek(), item.presentation == .cover, let id = history.pop()?.id {
+                removedHistoryItems.append(id)
+                difference += 1
+            } else {
+                log("Cover navigation history mismatch.", level: .critical)
+                difference = 0
+            }
+        }
+        
+        if !removedHistoryItems.isEmpty {
+            updateHistory(removedHistories: removedHistoryItems)
+        }
+    }
+    
+    /// Updates the `activePresentation` based on the most recent history.
+    private func updateActivePresentation() {
+        if let lastHistoryItem = history.peek() {
+            if activePresentation != lastHistoryItem.presentation {
+                log("Switching active presentation to \(lastHistoryItem.presentation.rawValue).", level: .verbose)
+                activePresentation = lastHistoryItem.presentation
+            }
+        } else {
+            // Default back to .stack if no history remains.
+            log("No history remains. Defaulting activePresentation to .stack.", level: .verbose)
+            if activePresentation != .stack {
+                activePresentation = .stack
+            }
+        }
+    }
+    
+    // MARK: - Private: Logging
+
+    /// Logs messages based on the assigned `LogLevel`.
+    private func log(
+        _ message: String,
+        level: LogLevel = .verbose,
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line
+    ) {
+        guard level >= logLevel else { return }
+        logger.log(level: level.osLogType, "\(message, privacy: .public)")
     }
 }
