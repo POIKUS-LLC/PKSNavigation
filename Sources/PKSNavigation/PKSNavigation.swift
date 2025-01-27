@@ -232,6 +232,37 @@ open class PKSNavigationManager: ObservableObject {
         }
     }
 
+    /// Navigates through a list of pages with a given presentation.
+    ///
+    /// - Parameters:
+    ///   - pages: An array of pages to navigate through.
+    ///   - presentation: The presentation method to use. Defaults to `.stack`.
+    ///   - isRoot: Whether to reset the presentation stack to make this page the root. Defaults to `false`.
+    public func navigate(
+        with pages: [any PKSPage],
+        presentation: PKSPresentationMethod = .stack,
+        isRoot: Bool = false
+    ) {
+        var currentPages = [] + pages
+        guard !currentPages.isEmpty else { return }
+        let first = currentPages.removeFirst()
+
+        navigate(to: first, presentation: presentation, isRoot: isRoot)
+
+        for page in currentPages {
+            navigate(to: page, presentation: presentation)
+        }
+    }
+
+    /// Navigates through a list of pages with a given presentation.
+    ///
+    /// - Parameter steps: An array of navigation steps.
+    public func navigate(with steps: [NavigationStep]) {
+        for step in steps {
+            navigate(to: step.page, presentation: step.presentation)
+        }
+    }
+
     /// Navigates back to the previous page/state in the navigation history.
     public func navigateBack() {
         guard let lastHistoryItem = history.peek() else {
