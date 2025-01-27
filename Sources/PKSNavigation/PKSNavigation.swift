@@ -257,7 +257,7 @@ open class PKSNavigationManager: ObservableObject {
     /// Navigates through a list of pages with a given presentation.
     ///
     /// - Parameter steps: An array of navigation steps.
-    public func navigate(with steps: [NavigationStep]) {
+    public func navigate(with steps: [PKSNavigationStep]) {
         for step in steps {
             navigate(to: step.page, presentation: step.presentation)
         }

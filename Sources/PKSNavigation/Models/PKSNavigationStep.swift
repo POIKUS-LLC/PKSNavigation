@@ -12,7 +12,7 @@ import Foundation
 /// - Parameters:
 ///   - page: The page to navigate to.
 ///   - presentation: The presentation method to use. Defaults to `.stack`.
-public struct NavigationStep {
+public struct PKSNavigationStep {
     /// The page to navigate to.
     public let page: any PKSPage
 
