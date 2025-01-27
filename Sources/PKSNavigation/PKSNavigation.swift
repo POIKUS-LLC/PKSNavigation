@@ -212,6 +212,10 @@ open class PKSNavigationManager: ObservableObject {
         navigate(to: page, presentation: presentation, isRoot: isRoot, isNavigatingWithParent: false)
     }
 
+    /// Replaces the current page with a new page.
+    ///
+    /// - Parameter page: The new page to navigate to.
+    /// - Note: This method can be cause unexpected behavior in iOS 16, if you call it in sheet or cover context.
     public func replace(
         with page: any PKSPage
     ) {
