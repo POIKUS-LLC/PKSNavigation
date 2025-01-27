@@ -212,6 +212,21 @@ open class PKSNavigationManager: ObservableObject {
         navigate(to: page, presentation: presentation, isRoot: isRoot, isNavigatingWithParent: false)
     }
 
+    public func replace(
+        with page: any PKSPage
+    ) {
+        let presentation = history.peek()?.presentation ?? .stack
+
+        if #available(iOS 17, *) {
+            navigate(to: page, presentation: presentation)
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+                guard let self = self else { return }
+                self.navigate(to: page, presentation: presentation)
+            }
+        }
+    }
+
     /// Navigates back to the previous page/state in the navigation history.
     public func navigateBack() {
         guard let lastHistoryItem = history.peek() else {
