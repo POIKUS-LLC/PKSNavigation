@@ -219,6 +219,7 @@ open class PKSNavigationManager: ObservableObject {
     public func replace(
         with page: any PKSPage
     ) {
+        navigateBack()
         let presentation = history.peek()?.presentation ?? .stack
 
         if #available(iOS 17, *) {
