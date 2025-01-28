@@ -100,7 +100,38 @@ open class PKSNavigationManager: ObservableObject {
             }
         }
     }
-    
+
+    /// The navigation status of the current navigation manager.
+    @Published public var navigationStatus: PKSNavigationStatus = PKSNavigationStatus(
+        presentationType: .stack, state: .initial)
+
+    /// Retrieves the navigation status of the current navigation manager.
+    ///
+    /// - Returns: The navigation status.
+    func getNavigationStatus() -> PKSNavigationStatus {
+        var presentation = activePresentation
+        var state: PKSNavigationState = .initial
+
+        if let lastHistoryItem = history.peek(), !lastHistoryItem.isParent {
+            presentation = lastHistoryItem.presentation
+
+            switch presentation {
+            case .stack:
+                state = rootPath.isEmpty ? .initial : .navigated
+            case .sheet:
+                state = sheetPath.isEmpty ? .initial : .navigated
+            case .cover:
+                state = coverPath.isEmpty ? .initial : .navigated
+            }
+        } else {
+            if let parentStatus = parent?.getNavigationStatus() {
+                return parentStatus
+            }
+        }
+
+        return PKSNavigationStatus(presentationType: presentation, state: state)
+    }
+
     // MARK: - Internal & Private Properties
 
     /// The unique identifier of this navigation manager.
@@ -551,6 +582,7 @@ open class PKSNavigationManager: ObservableObject {
         }
         
         updateActivePresentation()
+        navigationStatus = getNavigationStatus()
     }
     
     // MARK: - Private: Handling Navigation Changes
