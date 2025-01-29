@@ -109,12 +109,10 @@ open class PKSNavigationManager: ObservableObject {
     ///
     /// - Returns: The navigation status.
     func getNavigationStatus() -> PKSNavigationStatus {
-        var presentation = activePresentation
+        let presentation = activePresentation
         var state: PKSNavigationState = .initial
 
         if let lastHistoryItem = history.peek(), !lastHistoryItem.isParent {
-            presentation = lastHistoryItem.presentation
-
             switch presentation {
             case .stack:
                 state = rootPath.isEmpty ? .initial : .navigated
@@ -394,26 +392,26 @@ open class PKSNavigationManager: ObservableObject {
                 handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
             }
         case .sheet:
-            if isSheetStackRegistered {
-                if activePresentation == .cover {
-                    handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
-                } else {
-                    handleSheetNavigation(page: page, isRoot: isRoot, historyID: historyID)
-                }
+            if activePresentation == .cover {
+                handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
             } else {
-                log("Sheet stack not registered. Delegating to parent.", level: .verbose)
-                navigateWithParent(to: page, presentation: presentation, isRoot: isRoot, historyID: historyID)
+                if isSheetStackRegistered {
+                    handleSheetNavigation(page: page, isRoot: isRoot, historyID: historyID)
+                } else {
+                    log("Sheet stack not registered. Delegating to parent.", level: .verbose)
+                    navigateWithParent(to: page, presentation: presentation, isRoot: isRoot, historyID: historyID)
+                }
             }
         case .cover:
-            if isCoverStackRegistered {
-                if activePresentation == .sheet {
-                    handleSheetNavigation(page: page, isRoot: isRoot, historyID: historyID)
-                } else {
-                    handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
-                }
+            if activePresentation == .sheet {
+                handleSheetNavigation(page: page, isRoot: isRoot, historyID: historyID)
             } else {
-                log("Cover stack not registered. Delegating to parent.", level: .verbose)
-                navigateWithParent(to: page, presentation: presentation, isRoot: isRoot, historyID: historyID)
+                if isCoverStackRegistered {
+                    handleCoverNavigation(page: page, isRoot: isRoot, historyID: historyID)
+                } else {
+                    log("Cover stack not registered. Delegating to parent.", level: .verbose)
+                    navigateWithParent(to: page, presentation: presentation, isRoot: isRoot, historyID: historyID)
+                }
             }
         }
     }
@@ -568,7 +566,7 @@ open class PKSNavigationManager: ObservableObject {
     
     /// Updates the navigation history after certain items have been removed.
     private func updateHistory(removedHistories: [UUID]) {
-        guard !removedHistories.isEmpty, !history.isEmpty else { return }
+        guard !removedHistories.isEmpty else { return }
         
         for historyID in removedHistories {
             if history.peek()?.id == historyID {
