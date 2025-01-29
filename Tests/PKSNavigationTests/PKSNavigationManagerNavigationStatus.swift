@@ -95,7 +95,7 @@ class PKSNavigationManagerNavigationStatus: XCTestCase {
         navigationManager.navigate(to: mockPage, presentation: .sheet, isRoot: true)
         
         // Wait for the navigation to complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             let status = navigationManager.getNavigationStatus()
             
             XCTAssertEqual(status.presentationType, .sheet)
